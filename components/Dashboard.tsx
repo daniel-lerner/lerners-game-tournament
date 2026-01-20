@@ -39,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const isActuallyPlaying = isPlaying && !isPaused;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       <section className="text-center pt-8 pb-4 md:hidden">
         <h1 className="text-3xl font-extrabold text-white tracking-tighter">Lerner Cup <span className="text-indigo-500">2.0</span></h1>
       </section>
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Podium Section */}
       <section className="flex items-end justify-center gap-2 pt-10 pb-4 h-64 relative">
         {champion2025 && (
-          <div className="absolute top-0 right-0 bg-slate-800/80 border border-slate-700 px-3 py-2 rounded-xl flex items-center gap-2 shadow-lg">
+          <div className="absolute top-0 right-0 bg-slate-800/80 border border-slate-700 px-3 py-2 rounded-xl flex items-center gap-2 shadow-lg z-20">
             <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-[10px] text-yellow-950 font-black">25</div>
             <div>
               <p className="text-[8px] text-slate-500 font-bold uppercase">Atual Campeão</p>
@@ -105,7 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
             </span>
-            <h3 className="font-black text-lg text-slate-100 uppercase tracking-tighter">Narrador do Torneio</h3>
+            <h3 className="font-black text-lg text-slate-100 uppercase tracking-tighter">Narrador AI</h3>
           </div>
           <div className="flex items-center gap-3">
             {audioBuffer && (
@@ -115,11 +115,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </button>
               </div>
             )}
-            <button onClick={onGetInsights} disabled={isGeneratingAudio} className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black py-2 px-4 rounded-xl transition-all shadow-lg active:scale-95">{isGeneratingAudio ? "..." : "NOVO"}</button>
+            <button onClick={onGetInsights} disabled={isGeneratingAudio} className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black py-2 px-4 rounded-xl transition-all shadow-lg active:scale-95">{isGeneratingAudio ? "..." : "COMENTAR"}</button>
           </div>
         </div>
         <div className="relative z-10">
-          <p className="text-slate-300 italic leading-relaxed text-sm font-medium">"{aiInsights || "O narrador está de olho no legado de 2025..."}"</p>
+          <p className="text-slate-300 italic leading-relaxed text-sm font-medium">"{aiInsights || "O Mestre Lerner está observando cada jogada sua..."}"</p>
         </div>
       </div>
 
@@ -169,7 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         <div className="p-4 bg-slate-900/20">
           <div className="space-y-4">
-            {games.map((game) => (
+            {games.length > 0 ? games.map((game) => (
               <div key={game.id} className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-black text-white text-sm uppercase tracking-tight">{game.name}</h4>
@@ -211,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   ))}
                 </div>
               </div>
-            ))}
+            )) : <p className="text-xs text-slate-500 text-center py-4">Carregando guia...</p>}
           </div>
         </div>
       </div>

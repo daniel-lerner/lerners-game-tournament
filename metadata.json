@@ -1,7 +1,6 @@
+
 {
   "name": "Torneio de Jogos de Tabuleiro do Lerner 2.0",
   "description": "A sophisticated tournament management system for board game nights, featuring real-time rankings, match history, and AI-powered insights for players.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }

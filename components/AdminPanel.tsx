@@ -208,9 +208,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div className="space-y-8 pb-10">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-black text-white uppercase italic">Mestre do Torneio</h2>
+        <h2 className="text-2xl font-black text-white uppercase italic">Painel de Controle</h2>
         <div className="flex gap-2">
-          <button onClick={() => { setIsProcessing(true); fetchData().finally(() => setIsProcessing(false)); }} className="text-[10px] font-black bg-slate-800 text-indigo-400 px-3 py-1 rounded-full border border-slate-700 uppercase">Sincronizar</button>
+          <button onClick={() => { setIsProcessing(true); fetchData().finally(() => setIsProcessing(false)); }} className="text-[10px] font-black bg-slate-800 text-indigo-400 px-3 py-1 rounded-full border border-slate-700 uppercase">Sync</button>
           <button 
             onClick={syncGamesToSupabase} 
             disabled={isProcessing}
@@ -231,7 +231,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           Gerenciar Jogadores
         </h3>
         <form onSubmit={addPlayer} className="flex gap-2 mb-6">
-          <input type="text" placeholder="Nome..." className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl p-4 font-bold" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} disabled={isProcessing} />
+          <input type="text" placeholder="Nome do jogador..." className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl p-4 font-bold" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} disabled={isProcessing} />
           <button type="submit" className="bg-indigo-600 text-white font-black px-6 rounded-xl disabled:opacity-50" disabled={isProcessing}>ADD</button>
         </form>
         <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
@@ -258,9 +258,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`} 
                 disabled={isProcessing}
               >
-                {confirmDeletePlayerId === p.id ? 'Confirmar?' : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                )}
+                {confirmDeletePlayerId === p.id ? 'Confirmar?' : 'Excluir'}
               </button>
             </div>
           ))}
@@ -291,7 +289,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </button>
             </div>
           ))}
-          {matches.length === 0 && <p className="text-center text-slate-600 italic py-4">Sem partidas.</p>}
+          {matches.length === 0 && <p className="text-center text-slate-600 italic py-4">Sem partidas registradas.</p>}
         </div>
       </section>
 

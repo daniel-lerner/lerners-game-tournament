@@ -13,12 +13,14 @@ import Toast from './components/Toast';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://rqdsbudpisnwdvaugukf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_US4jmKUFdi82enu1yHgVtg_RBJxH9WQ';
+// Configurações do Supabase
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rqdsbudpisnwdvaugukf.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY || 'sb_publishable_US4jmKUFdi82enu1yHgVtg_RBJxH9WQ';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function decodeBase64(base64: string) {
-  const binaryString = atob(base64.split(',')[1] || base64);
+// Funções de decodificação oficiais do SDK
+function decode(base64: string) {
+  const binaryString = atob(base64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -27,13 +29,22 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  // Garantindo que o buffer esteja alinhado para Int16
+  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) { channelData[i] = dataInt16[i * numChannels + channel] / 32768.0; }
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
   }
   return buffer;
 }
@@ -115,41 +126,29 @@ const App: React.FC = () => {
   };
 
   const deleteMatch = async (matchId: string) => {
-    // Localizar a partida no estado atual
     const matchToDelete = matches.find(m => String(m.id) === String(matchId));
-    if (!matchToDelete) {
-      alert("Erro: Partida não encontrada no estado local.");
-      return;
-    }
+    if (!matchToDelete) return;
 
     setSyncStatus('syncing');
     try {
-      // 1. Estornar estatísticas dos jogadores
       for (const res of matchToDelete.results) {
         const player = players.find(p => String(p.id) === String(res.playerId));
         if (player) {
           const pId = isNaN(Number(player.id)) ? player.id : Number(player.id);
-          const { error: pErr } = await supabase.from('players').update({
+          await supabase.from('players').update({
             total_points: Math.max(0, player.totalPoints - res.pointsEarned),
             matches_played: Math.max(0, player.matchesPlayed - 1),
             wins: res.position === 1 ? Math.max(0, player.wins - 1) : player.wins
           }).eq('id', pId);
-          if (pErr) console.error("Erro ao estornar jogador:", pErr);
         }
       }
-
-      // 2. Deletar partida do banco
       const mId = isNaN(Number(matchId)) ? matchId : Number(matchId);
       const { error: deleteError } = await supabase.from('matches').delete().eq('id', mId);
-      
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      } else {
-        addToast("Partida removida e pontos estornados!", 'info');
-        await fetchData();
-      }
+      if (deleteError) throw new Error(deleteError.message);
+      addToast("Partida removida!", 'info');
+      await fetchData();
     } catch (err: any) {
-      alert("Erro ao excluir partida: " + err.message);
+      alert("Erro ao excluir: " + err.message);
     } finally {
       setSyncStatus('online');
     }
@@ -217,48 +216,102 @@ const App: React.FC = () => {
   };
 
   const getAiInsights = async () => {
-    if (matches.length === 0) return setAiInsights("Joguem algo para eu poder cornetar!");
+    if (matches.length === 0) {
+      setAiInsights("Joguem pelo menos uma partida para eu ter o que falar!");
+      return;
+    }
+
     setIsGeneratingAudio(true);
-    setAiInsights("Analisando a mesa...");
+    setAiInsights("Invocando o Mestre Lerner...");
+    
     try {
+      // Cria a instância sempre no momento do uso para pegar a env atualizada
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const currentRanking = players.filter(p => p.editionId === '2026').sort((a,b) => b.totalPoints - a.totalPoints);
+      const currentRanking = players
+        .filter(p => p.editionId === '2026')
+        .sort((a,b) => b.totalPoints - a.totalPoints);
+      
+      const stats = currentRanking.map(p => `${p.name}: ${p.totalPoints} pts (${p.wins} vitórias)`).join(', ');
+      const recent = matches.slice(0, 3).map(m => {
+        const g = games.find(game => game.id === m.gameId)?.name;
+        const winner = players.find(p => p.id === m.results.find(r => r.position === 1)?.playerId)?.name;
+        return `${g} (vencido por ${winner})`;
+      }).join('; ');
+
+      // 1. Gera o Comentário (Text)
       const textResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Torneio do Lerner 2026. Ranking: ${currentRanking.map(p => `${p.name} (${p.totalPoints})`).join(', ')}.`,
-        config: { systemInstruction: "Seja um mestre de board games sarcástico e engraçado." }
-      });
-      const text = textResponse.text || "";
-      setAiInsights(text);
-      const tts = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+        model: 'gemini-3-pro-preview',
+        contents: `Analise este torneio: Ranking: ${stats}. Últimas partidas: ${recent}.`,
+        config: { 
+          systemInstruction: "Você é o Mestre Lerner, o anfitrião ácido e carismático de um torneio de board games. Fale de forma rápida, sarcástica, use gírias de quem joga muito e foque na rivalidade. Dê um apelido engraçado para o primeiro colocado e zoe o último. Mantenha em apenas 2 ou 3 frases curtas em português brasileiro." 
         }
       });
-      const audioData = tts.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      
+      const text = textResponse.text || "Sem comentários para essa mesa vergonhosa.";
+      setAiInsights(text);
+      
+      // 2. Gera a Voz (TTS)
+      const ttsResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: `Diga com um tom sarcástico e animado: ${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { 
+            voiceConfig: { 
+              prebuiltVoiceConfig: { voiceName: 'Puck' } 
+            } 
+          }
+        }
+      });
+      
+      const audioData = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (audioData) {
         if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
-        const buffer = await decodeAudioData(decodeBase64(audioData), audioContextRef.current, 24000, 1);
+        // Retoma o contexto se estiver suspenso (necessário em alguns navegadores)
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+        
+        const decodedBytes = decode(audioData);
+        const buffer = await decodeAudioData(decodedBytes, audioContextRef.current, 24000, 1);
         setAudioBuffer(buffer);
+        addToast("Narrador pronto para falar!", "info");
       }
-    } catch (e) { console.error(e); } finally { setIsGeneratingAudio(false); }
+    } catch (e: any) { 
+      console.error("Erro AI:", e); 
+      setAiInsights("O Mestre Lerner foi tomar um café. Verifique se a API_KEY está correta no Vercel.");
+      addToast("Erro na Inteligência Artificial", "info");
+    } finally { 
+      setIsGeneratingAudio(false); 
+    }
   };
 
   const handleAudioToggle = async () => {
     if (!audioBuffer || !audioContextRef.current) return;
-    if (isPlaying && !isPaused) { await audioContextRef.current.suspend(); setIsPaused(true); }
-    else if (isPlaying && isPaused) { await audioContextRef.current.resume(); setIsPaused(false); }
-    else {
+    
+    if (isPlaying && !isPaused) { 
+      await audioContextRef.current.suspend(); 
+      setIsPaused(true); 
+    } else if (isPlaying && isPaused) { 
+      await audioContextRef.current.resume(); 
+      setIsPaused(false); 
+    } else {
+      // Resume context antes de tocar (gesto do usuário)
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+      
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContextRef.current.destination);
-      source.onended = () => { setIsPlaying(false); setIsPaused(false); };
+      source.onended = () => { 
+        setIsPlaying(false); 
+        setIsPaused(false); 
+      };
       source.start(0);
       currentSourceRef.current = source;
       setIsPlaying(true);
+      setIsPaused(false);
     }
   };
 
@@ -269,7 +322,22 @@ const App: React.FC = () => {
         {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} />)}
       </div>
       <main className="max-w-4xl mx-auto px-4 py-6">
-        {view === ViewMode.DASHBOARD && <Dashboard players={players} matches={matches} games={games} aiInsights={aiInsights} onGetInsights={getAiInsights} isGeneratingAudio={isGeneratingAudio} audioBuffer={audioBuffer} onAudioToggle={handleAudioToggle} isPlaying={isPlaying} isPaused={isPaused} playbackSpeed={1} onSpeedChange={()=>{}} />}
+        {view === ViewMode.DASHBOARD && (
+          <Dashboard 
+            players={players} 
+            matches={matches} 
+            games={games} 
+            aiInsights={aiInsights} 
+            onGetInsights={getAiInsights} 
+            isGeneratingAudio={isGeneratingAudio} 
+            audioBuffer={audioBuffer} 
+            onAudioToggle={handleAudioToggle} 
+            isPlaying={isPlaying} 
+            isPaused={isPaused} 
+            playbackSpeed={1} 
+            onSpeedChange={()=>{}} 
+          />
+        )}
         {view === ViewMode.RANKING && <RankingTable players={players} />}
         {view === ViewMode.ADD_MATCH && <MatchForm players={players.filter(p => p.editionId === '2026')} games={games} onSubmit={addMatch} />}
         {view === ViewMode.HISTORY && <MatchHistory matches={matches} games={games} players={players} />}
